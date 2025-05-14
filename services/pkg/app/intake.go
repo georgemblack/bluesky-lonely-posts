@@ -109,6 +109,7 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 		}
 
 		if !event.Valid() {
+			stats.ignored++
 			continue
 		}
 

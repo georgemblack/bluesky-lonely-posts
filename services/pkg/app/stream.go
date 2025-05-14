@@ -1,6 +1,9 @@
 package app
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/util"
 )
 
@@ -27,6 +30,7 @@ type Record struct {
 	Facets    []Facet  `json:"facets"`
 	Subject   Content  `json:"subject"`
 	Reply     Reply    `json:"reply"`
+	Text      string   `json:"text"`
 }
 
 type Embed struct {
@@ -99,13 +103,11 @@ func (s *StreamEvent) IsPost() bool {
 }
 
 // IsStandardPost determines whether the post is 'standard', i.e. not a quote or reply.
-// We also exclude posts with link facets, as we are trying to avoid 'commentary' on news.
+// It also excludes posts with embeds or facets – this is the best way to avoid junk content.
 func (s *StreamEvent) IsStandardPost() bool {
-	return s.IsPost() && !s.IsReplyPost() && !s.HasEmbed() && !s.HasFacet()
+	return s.IsPost() && !s.IsReplyPost() && !s.HasEmbed() && !s.HasFacet() && !s.HasBlockedWord()
 }
 
-// IsQuotePost determines whether the event is a quote post.
-// Quote posts are a subset of posts that contain record embeds.
 func (s *StreamEvent) IsQuotePost() bool {
 	if !s.IsPost() {
 		return false
@@ -138,4 +140,24 @@ func (s *StreamEvent) HasFacet() bool {
 
 func (s *StreamEvent) HasEmbed() bool {
 	return s.Commit.Record.Embed.Type != ""
+}
+
+func (s *StreamEvent) HasBlockedWord() bool {
+	text := s.Commit.Record.Text
+	if text == "" {
+		return false
+	}
+
+	lower := strings.ToLower(text)
+
+	for _, word := range blockedWords {
+		// Pad blocked word to ensure it isn't part of another word
+		// i.e. 'test' should not match 'testing'
+		blocked := fmt.Sprintf(" %s ", word)
+		if strings.Contains(lower, blocked) {
+			return true
+		}
+	}
+
+	return false
 }
