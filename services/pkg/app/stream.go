@@ -101,11 +101,7 @@ func (s *StreamEvent) IsPost() bool {
 // IsStandardPost determines whether the post is 'standard', i.e. not a quote or reply.
 // We also exclude posts with link facets, as we are trying to avoid 'commentary' on news.
 func (s *StreamEvent) IsStandardPost() bool {
-	if !s.IsPost() {
-		return false
-	}
-
-	return !s.IsQuotePost() && !s.IsReplyPost() && !s.HasLinkFacet() && !s.HasLinkEmbed()
+	return s.IsPost() && !s.IsReplyPost() && !s.HasEmbed() && !s.HasFacet()
 }
 
 // IsQuotePost determines whether the event is a quote post.
@@ -136,18 +132,10 @@ func (s *StreamEvent) IsEnglish() bool {
 	return util.ContainsStr(s.Commit.Record.Languages, "en")
 }
 
-func (s *StreamEvent) HasLinkFacet() bool {
-	for _, facet := range s.Commit.Record.Facets {
-		for _, feature := range facet.Features {
-			if feature.Type == "app.bsky.richtext.facet#link" {
-				return true
-			}
-		}
-	}
-
-	return false
+func (s *StreamEvent) HasFacet() bool {
+	return len(s.Commit.Record.Facets) > 0
 }
 
-func (s *StreamEvent) HasLinkEmbed() bool {
-	return s.Commit.Record.Embed.Type == "app.bsky.embed.external"
+func (s *StreamEvent) HasEmbed() bool {
+	return s.Commit.Record.Embed.Type != ""
 }

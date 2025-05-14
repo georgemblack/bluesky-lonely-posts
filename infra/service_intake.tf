@@ -1,5 +1,5 @@
 locals {
-  intake_version = "0.0.6"
+  intake_version = "0.0.7"
 }
 
 resource "aws_ecs_task_definition" "lonely-posts-intake" {

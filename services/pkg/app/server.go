@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/georgemblack/bluesky-lonely-posts/pkg/cache"
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/util"
 )
 
@@ -49,64 +50,18 @@ func Server() error {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "public; max-age=10")
 
-		// Handle "limit" query parameter
-		limitStr := r.URL.Query().Get("limit")
-		if limitStr == "" {
-			limitStr = "10"
-		}
-		limit, err := strconv.Atoi(limitStr)
-		if err != nil {
-			slog.Error("failed to parse limit", "error", err)
-			http.Error(w, "Invalid limit", http.StatusBadRequest)
-			return
-		}
-		if limit < 1 || limit > 100 {
-			slog.Error("invalid limit", "limit", limit)
-			http.Error(w, "Limit must be between 1 and 100", http.StatusBadRequest)
-			return
-		}
-
-		// Look for "cursor" query parameter
-		cursorStr := r.URL.Query().Get("cursor")
-		if cursorStr == "" {
-			cursorStr = "0"
-		}
-		cursor, err := strconv.ParseUint(cursorStr, 10, 64)
-		if err != nil {
-			slog.Error("failed to parse cursor", "error", err)
-			http.Error(w, "Invalid cursor", http.StatusBadRequest)
-			return
-		}
-		if cursor < 0 {
-			slog.Error("invalid cursor", "cursor", cursor)
-			http.Error(w, "Invalid cursor", http.StatusBadRequest)
-			return
-		}
+		slog.Info("request", "limit", r.URL.Query().Get("limit"), "cursor", r.URL.Query().Get("cursor"))
 
 		// Fetch post records from the cache
-		posts, respCursor, err := app.Cache.FindPosts(limit, cursor)
+		posts, respCursor, err := app.Cache.FindPosts(limitQuery(r), cursorQuery(r))
 		if err != nil {
 			slog.Error("failed to find posts", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		// Convert to response fomat
-		feed := make([]APIPost, len(posts))
-		for i, post := range posts {
-			feed[i] = APIPost{
-				Post: post.AtURI,
-			}
-		}
-		respCursorStr := strconv.FormatUint(respCursor, 10)
-		if respCursorStr == "0" {
-			respCursorStr = "" // Ensure cursor is omitted from response if no more posts are available
-		}
-		resp := APIFeedSkeletonResponse{
-			Feed:   feed,
-			Cursor: respCursorStr,
-		}
-
+		// Format & encode response
+		resp := toResponse(posts, respCursor)
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			slog.Error("failed to encode response", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -114,7 +69,56 @@ func Server() error {
 		}
 	})
 
-	// Start the server
 	slog.Info("starting server", "port", app.Config.ServerPort)
 	return http.ListenAndServe(fmt.Sprintf(":%s", app.Config.ServerPort), server)
+}
+
+func limitQuery(r *http.Request) int {
+	limitStr := r.URL.Query().Get("limit")
+	if limitStr == "" {
+		limitStr = "10"
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		return 10
+	}
+	if limit < 1 || limit > 100 {
+		return 10
+	}
+
+	return limit
+}
+
+func cursorQuery(r *http.Request) uint64 {
+	cursorStr := r.URL.Query().Get("cursor")
+	if cursorStr == "" {
+		cursorStr = "0"
+	}
+	cursor, err := strconv.ParseUint(cursorStr, 10, 64)
+	if err != nil {
+		return 0
+	}
+	if cursor < 0 {
+		return 0
+	}
+
+	return cursor
+}
+
+func toResponse(posts []cache.PostRecord, cursor uint64) APIFeedSkeletonResponse {
+	feed := make([]APIPost, len(posts))
+	for i, post := range posts {
+		feed[i] = APIPost{
+			Post: post.AtURI,
+		}
+	}
+	cursorStr := strconv.FormatUint(cursor, 10)
+	if cursorStr == "0" || len(posts) == 0 {
+		cursorStr = "" // Ensure cursor is omitted from response if no more posts are available
+	}
+
+	return APIFeedSkeletonResponse{
+		Feed:   feed,
+		Cursor: cursorStr,
+	}
 }

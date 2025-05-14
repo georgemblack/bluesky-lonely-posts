@@ -1,5 +1,5 @@
 locals {
-  server_version = "0.0.6"
+  server_version = "0.0.7"
 }
 
 resource "aws_ecs_task_definition" "lonely-posts-server" {
