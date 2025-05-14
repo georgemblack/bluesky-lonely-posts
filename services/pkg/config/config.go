@@ -10,12 +10,14 @@ import (
 type Config struct {
 	ValkeyAddress    string
 	ValkeyTLSEnabled bool
+	ServerPort       string
 }
 
 func New() (Config, error) {
 	result := Config{
 		ValkeyAddress:    util.GetEnvStr("VALKEY_ADDRESS", "127.0.0.1:6379"),
 		ValkeyTLSEnabled: util.GetEnvBool("VALKEY_TLS_ENABLED", false),
+		ServerPort:       util.GetEnvStr("SERVER_PORT", "8080"),
 	}
 
 	// Marshal to JSON and print if debug is enabled

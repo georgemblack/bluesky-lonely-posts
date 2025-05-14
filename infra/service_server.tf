@@ -1,5 +1,5 @@
 locals {
-  server_version = "0.0.1"
+  server_version = "0.0.6"
 }
 
 resource "aws_ecs_task_definition" "lonely-posts-server" {
@@ -24,6 +24,10 @@ resource "aws_ecs_task_definition" "lonely-posts-server" {
         {
           name  = "VALKEY_TLS_ENABLED"
           value = "true"
+        },
+        {
+          name  = "SERVER_PORT"
+          value = "80"
         },
       ]
       cpu    = 256

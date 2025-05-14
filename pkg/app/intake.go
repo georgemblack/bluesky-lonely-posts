@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
-	"time"
 
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/cache"
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/util"
@@ -19,20 +18,12 @@ const (
 )
 
 type Stats struct {
-	started   time.Time
-	errors    int
-	saves     int
-	ignored   int
-	deletions int
+	errors int // Number of errors
 }
 
 func newStats() Stats {
 	return Stats{
-		started:   time.Now(),
-		errors:    0,
-		saves:     0,
-		ignored:   0,
-		deletions: 0,
+		errors: 0,
 	}
 }
 
@@ -113,8 +104,7 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 		}
 
 		if event.IsStandardPost() {
-			// Save standard posts to the cache.
-			// Standard posts don't interact with other posts (i.e. quotes & replies), and don't contain external links.
+			// Save the post to the cache
 			atURI := fmt.Sprintf("at://%s/app.bsky.feed.post/%s", event.DID, event.Commit.RKey)
 			err := app.Cache.SavePost(util.Hash(atURI), cache.PostRecord{
 				AtURI:     atURI,
@@ -125,27 +115,18 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 				stats.errors++
 				continue
 			}
-			stats.saves++
+			slog.Debug(fmt.Sprintf("saved post %s", atURI))
 		} else {
-			// For other event types, find the referenced post (if applicable) and delete it from the cache.
-			// This includes likes, reposts, replies, and quotes.
 			atURI := referencedPost(event)
+			fmt.Println(event)
 			if atURI == "" {
-				stats.ignored++
+				slog.Error("failed to get referenced post")
 				continue
+			} else {
+				slog.Info(fmt.Sprintf("deleting post %s", atURI))
 			}
-			if err := app.Cache.DeletePost(util.Hash(atURI)); err != nil {
-				slog.Error(util.WrapErr("failed to delete post", err).Error(), "at_uri", atURI)
-				stats.errors++
-				continue
-			}
-			stats.deletions++
-		}
-
-		// Log stats every ~5 minutes
-		if time.Since(stats.started) > 5*time.Minute {
-			slog.Info("intake stats", "errors", stats.errors, "saves", stats.saves, "deletions", stats.deletions, "ignored", stats.ignored, "queue", len(stream))
-			stats = newStats()
+			app.Cache.DeletePost(util.Hash(atURI))
+			slog.Debug(fmt.Sprintf("deleted post %s", atURI))
 		}
 	}
 }

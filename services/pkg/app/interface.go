@@ -8,6 +8,6 @@ type Cache interface {
 	SavePost(hash string, post cache.PostRecord) error
 	ReadPost(hash string) (cache.PostRecord, error)
 	DeletePost(hash string) error
-	FindPosts(cursor uint64) ([]cache.PostRecord, uint64, error)
+	FindPosts(n int, cursor uint64) ([]cache.PostRecord, uint64, error)
 	Close()
 }
