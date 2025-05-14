@@ -13,7 +13,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-const TTLSeconds = 3600 // 6 hours
+const TTLSeconds = 3600 // 3 hours
 
 type Valkey struct {
 	client valkey.Client
