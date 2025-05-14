@@ -1,0 +1,18 @@
+{
+  "did": "did:plc:ruzlll5u7u7pfxybmppqyxbx",
+  "time_us": 1747176924092943,
+  "kind": "commit",
+  "commit": {
+    "rev": "3lp3ldylb2m2l",
+    "operation": "create",
+    "collection": "app.bsky.feed.post",
+    "rkey": "3lp3ldyiu2k2g",
+    "record": {
+      "$type": "app.bsky.feed.post",
+      "createdAt": "2025-05-13T22:55:23.819Z",
+      "langs": ["en"],
+      "text": "Regular post"
+    },
+    "cid": "bafyreifq2f76kkqivajozj23lrxajqscutywk2bp4dh3qx3tqst7yxm5uu"
+  }
+}
