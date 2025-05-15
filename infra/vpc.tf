@@ -131,17 +131,6 @@ resource "aws_security_group" "lonely_posts_server" {
       "2c0f:f248::/32"
     ]
   }
-
-  # Ingress rule to allow all traffic from anywhere
-  # TODO: Remove after testing
-  ingress {
-    description      = "Allow all inbound traffic from anywhere"
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
 }
 
 resource "aws_security_group" "lonely_posts_cache" {
