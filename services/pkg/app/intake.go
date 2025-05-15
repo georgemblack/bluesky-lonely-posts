@@ -3,7 +3,6 @@ package app
 import (
 	"fmt"
 	"log/slog"
-	"strings"
 	"sync"
 	"time"
 
@@ -94,8 +93,6 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 	defer wg.Done()
 
 	stats := newStats()
-	blockedDIDs := blockedDIDs()
-	blockedWords := blockedWords()
 
 	for {
 		event := StreamEvent{}
@@ -125,24 +122,9 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 			// These posts are elligible to appear in the feed.
 
 			// Determine whether the post passes our filters.
-			// Check for blocked DIDs (bots), as well as blocked words in the post text.
-			if blockedDIDs.Contains(event.DID) {
+			if !includePost(event) {
 				stats.blocked++
 				continue
-			}
-			if event.IsPost() {
-				blocked := false
-				tokens := strings.Split(event.Commit.Record.Text, " ")
-				for _, token := range tokens {
-					if blockedWords.Contains(strings.ToLower(token)) {
-						blocked = true
-						break
-					}
-				}
-				if blocked {
-					stats.blocked++
-					continue
-				}
 			}
 
 			// Save to cache in order for it to be displayed in the feed.

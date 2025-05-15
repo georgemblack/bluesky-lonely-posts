@@ -95,14 +95,14 @@ func (s *StreamEvent) Valid() bool {
 	return true
 }
 
-func (s *StreamEvent) IsPost() bool {
-	return s.Commit.Record.Type == "app.bsky.feed.post"
-}
-
 // IsStandardPost determines whether the post is 'standard', i.e. not a quote or reply.
 // It also excludes posts with embeds or facets – this is the best way to avoid junk content.
 func (s *StreamEvent) IsStandardPost() bool {
 	return s.IsPost() && !s.IsReplyPost() && !s.HasEmbed() && !s.HasFacet()
+}
+
+func (s *StreamEvent) IsPost() bool {
+	return s.Commit.Record.Type == "app.bsky.feed.post"
 }
 
 func (s *StreamEvent) IsQuotePost() bool {
@@ -137,4 +137,12 @@ func (s *StreamEvent) HasFacet() bool {
 
 func (s *StreamEvent) HasEmbed() bool {
 	return s.Commit.Record.Embed.Type != ""
+}
+
+func (s *StreamEvent) GetDID() string {
+	return s.DID
+}
+
+func (s *StreamEvent) GetText() string {
+	return s.Commit.Record.Text
 }

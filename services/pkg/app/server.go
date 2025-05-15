@@ -53,7 +53,7 @@ func Server() error {
 	// Read a random set of ten posts from the cache.
 	server.HandleFunc("/xrpc/app.bsky.feed.getFeedSkeleton", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Header().Set("Cache-Control", "public; max-age=10")
+		w.Header().Set("Cache-Control", "public; max-age=15")
 
 		slog.Info("request", "limit", r.URL.Query().Get("limit"), "cursor", r.URL.Query().Get("cursor"))
 
