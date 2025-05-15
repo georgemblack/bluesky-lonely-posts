@@ -46,7 +46,8 @@ func Intake() error {
 	}
 	defer app.Close()
 
-	// Start worker threads
+	// Start worker threads.
+	// Each worker thread reads from the queue of events and processes them.
 	var wg sync.WaitGroup
 	wg.Add(WorkerPoolSize)
 	stream := make(chan StreamEvent, StreamBufferSize)
@@ -55,30 +56,73 @@ func Intake() error {
 		go intakeWorker(i+1, stream, shutdown, app, &wg)
 	}
 
-	// Connect to Jetstream
-	conn, _, err := websocket.DefaultDialer.Dial(JetstreamURL, nil)
+	// Read the Jetstream cursor from the cache.
+	// If our application exited due to an error, our position in the Jetstream may have been saved.
+	cursor, err := app.Cache.ReadCursor()
+	if err != nil {
+		slog.Warn(util.WrapErr("failed to read cursor", err).Error())
+	} else {
+		if cursor > 0 {
+			slog.Info("discovered cursor", "cursor", cursor)
+
+			// Subtrack 5 seconds from the cursor to ensure we don't miss events
+			cursor -= 5 * 1_000_000
+
+			slog.Info("using cursor", "cursor", cursor)
+		} else {
+			slog.Info("no cursor found, continuing without")
+		}
+	}
+
+	// Build the URL to connect to the Jetstream
+	url := JetstreamURL
+	if cursor > 0 {
+		url += fmt.Sprintf("&cursor=%d", cursor)
+	}
+
+	// Connect to the Jetstream
+	conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 	if err != nil {
 		return util.WrapErr("failed to dial jetstream", err)
 	}
 	defer conn.Close()
 
-	// Send Jetstream messages to workers
+	// Keep track of the most recent event timestamp.
+	// If our connection is interrupted, we can use this to resume from the last event.
+	var latest int64
+
+	// Parse Jetstream messages as JSON and send them to the worker queue
 	errors := 0
 	for {
 		event := StreamEvent{}
 		err := conn.ReadJSON(&event)
+
 		if err != nil {
 			errors++
 			slog.Warn(util.WrapErr("failed to read json", err).Error())
 
+			// If we encounter too many errors, save our position in the Jetstream and exit
 			if errors > ErrorThreshold {
-				slog.Error("encountered too many errors reading from jetstream")
+				slog.Error("encountered too many errors reading from jetstream, saving cursor and exiting")
+
+				if latest > 0 {
+					err := app.Cache.SaveCursor(latest)
+					if err != nil {
+						slog.Error(util.WrapErr("failed to save cursor", err).Error())
+					} else {
+						slog.Info("saved cursor", "cursor", latest)
+					}
+				} else {
+					slog.Warn("no cursor to save, exiting")
+				}
+
 				break
 			}
 
 			continue
 		}
 
+		latest = event.TimeUS
 		stream <- event
 	}
 
@@ -115,13 +159,12 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 			continue
 		}
 
-		// Process the event.
-
+		// Process the event
 		if event.IsStandardPost() {
 			// Standard posts are standalone posts (i.e. not quotes, replies) and don't contain any media or external links.
 			// These posts are elligible to appear in the feed.
 
-			// Determine whether the post passes our filters.
+			// Determine whether the post passes content filters.
 			if !includePost(event) {
 				stats.blocked++
 				continue

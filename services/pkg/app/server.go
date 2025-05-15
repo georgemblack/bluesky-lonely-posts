@@ -58,7 +58,7 @@ func Server() error {
 		slog.Info("request", "limit", r.URL.Query().Get("limit"), "cursor", r.URL.Query().Get("cursor"))
 
 		// Fetch post records from the cache
-		posts, respCursor, err := app.Cache.FindPosts(limitQuery(r), cursorQuery(r))
+		posts, respCursor, err := app.Cache.ReadPosts(limitQuery(r), cursorQuery(r))
 		if err != nil {
 			slog.Error("failed to find posts", "error", err)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
