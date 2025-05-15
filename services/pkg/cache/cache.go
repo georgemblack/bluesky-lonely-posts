@@ -13,7 +13,8 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-const TTLSeconds = 3600 // 3 hours
+const TTLSeconds = 3600  // 3 hours
+const LonelyMinutes = 15 // 15 minutes
 
 type Valkey struct {
 	client valkey.Client
@@ -98,11 +99,11 @@ func (v Valkey) Close() {
 }
 
 // FindPosts scans the cache starting at the given cursor and returns 'n' posts.
-// Only posts older than 20 minutes are ignored, to ensure a given post truly is "lonely".
+// Only posts older than X minutes are included, to ensure a given post truly is "lonely".
 func (v Valkey) FindPosts(n int, cursor uint64) ([]PostRecord, uint64, error) {
 	result := make([]PostRecord, 0, n)
 	icursor := cursor // Internal cursor
-	threshold := time.Now().Add(-20 * time.Minute).UnixMicro()
+	threshold := time.Now().Add((-1 * LonelyMinutes) * time.Minute).UnixMicro()
 
 	// Prevent taxing the cache if there are not enough valid posts
 	scans := 0
@@ -147,7 +148,7 @@ func (v Valkey) FindPosts(n int, cursor uint64) ([]PostRecord, uint64, error) {
 				continue
 			}
 
-			// Ignore posts that are less than 20 minutes old
+			// Ignore posts that are less than X minutes old
 			if record.Timestamp > threshold {
 				slog.Debug("ignoring new post", "at_uri", record.AtURI, "timestamp", record.Timestamp)
 				continue

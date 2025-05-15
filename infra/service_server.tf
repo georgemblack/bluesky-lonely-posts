@@ -1,5 +1,5 @@
 locals {
-  server_version = "0.0.7"
+  server_version = "0.2.2"
 }
 
 resource "aws_ecs_task_definition" "lonely-posts-server" {
@@ -8,6 +8,7 @@ resource "aws_ecs_task_definition" "lonely-posts-server" {
   network_mode             = "awsvpc"
   cpu                      = 256
   memory                   = 512
+  task_role_arn            = aws_iam_role.lonely_posts_service.arn
   execution_role_arn       = aws_iam_role.lonely_posts_execution.arn
 
   container_definitions = jsonencode([

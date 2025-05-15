@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,17 +22,18 @@ const (
 type Stats struct {
 	started   time.Time
 	errors    int
-	saves     int
-	ignored   int
-	deletions int
+	ignored   int // Number ignored events
+	saves     int // Number of posts saved to the cache
+	blocked   int // Number of posts blocked by filters
+	deletions int // Number of deletions from the cache
 }
 
 func newStats() Stats {
 	return Stats{
 		started:   time.Now(),
 		errors:    0,
-		saves:     0,
 		ignored:   0,
+		saves:     0,
 		deletions: 0,
 	}
 }
@@ -92,6 +94,8 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 	defer wg.Done()
 
 	stats := newStats()
+	blockedDIDs := blockedDIDs()
+	blockedWords := blockedWords()
 
 	for {
 		event := StreamEvent{}
@@ -108,14 +112,40 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 			return
 		}
 
+		// Determine whether the event should be processed
 		if !event.Valid() {
 			stats.ignored++
 			continue
 		}
 
+		// Process the event.
+
 		if event.IsStandardPost() {
-			// Save standard posts to the cache.
-			// Standard posts don't interact with other posts (i.e. quotes & replies), and don't contain external links.
+			// Standard posts are standalone posts (i.e. not quotes, replies) and don't contain any media or external links.
+			// These posts are elligible to appear in the feed.
+
+			// Determine whether the post passes our filters.
+			// Check for blocked DIDs (bots), as well as blocked words in the post text.
+			if blockedDIDs.Contains(event.DID) {
+				stats.blocked++
+				continue
+			}
+			if event.IsPost() {
+				blocked := false
+				tokens := strings.Split(event.Commit.Record.Text, " ")
+				for _, token := range tokens {
+					if blockedWords.Contains(strings.ToLower(token)) {
+						blocked = true
+						break
+					}
+				}
+				if blocked {
+					stats.blocked++
+					continue
+				}
+			}
+
+			// Save to cache in order for it to be displayed in the feed.
 			atURI := fmt.Sprintf("at://%s/app.bsky.feed.post/%s", event.DID, event.Commit.RKey)
 			err := app.Cache.SavePost(util.Hash(atURI), cache.PostRecord{
 				AtURI:     atURI,
@@ -128,9 +158,9 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 			}
 			stats.saves++
 		} else {
-			// For other event types, find the referenced post (if applicable) and delete it from the cache.
-			// This includes likes, reposts, replies, and quotes.
-			atURI := referencedPost(event)
+			// For all other events, determine if they interact with a post (i.e. likes, quotes, replies).
+			// Delete the target post from the cache if it exists, to prevent it from appearing in the feed.
+			atURI := targetPost(event)
 			if atURI == "" {
 				stats.ignored++
 				continue
@@ -145,14 +175,14 @@ func intakeWorker(id int, stream chan StreamEvent, shutdown chan struct{}, app A
 
 		// Log stats every ~5 minutes
 		if time.Since(stats.started) > 5*time.Minute {
-			slog.Info("intake stats", "errors", stats.errors, "saves", stats.saves, "deletions", stats.deletions, "ignored", stats.ignored, "queue", len(stream))
+			slog.Info("intake stats", "saves", stats.saves, "deletions", stats.deletions, "errors", stats.errors, "ignored", stats.ignored, "blocked", stats.blocked, "queue", len(stream))
 			stats = newStats()
 		}
 	}
 }
 
 // Given a stream event that references a post, return the AT URI of the post it is referencing.
-func referencedPost(event StreamEvent) string {
+func targetPost(event StreamEvent) string {
 	if event.IsLike() || event.IsRepost() {
 		return event.Commit.Record.Subject.URI
 	}

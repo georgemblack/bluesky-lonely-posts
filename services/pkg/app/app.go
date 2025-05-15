@@ -1,9 +1,14 @@
 package app
 
 import (
+	"embed"
+
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/cache"
 	"github.com/georgemblack/bluesky-lonely-posts/pkg/config"
 )
+
+//go:embed assets/*
+var assets embed.FS
 
 // App creates a new instance of the application, initializing the cache, storage, and Bluesky API client.
 type App struct {

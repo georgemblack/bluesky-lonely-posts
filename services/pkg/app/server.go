@@ -20,6 +20,11 @@ func Server() error {
 	}
 	defer app.Close()
 
+	// Update Cloudflare DNS records
+	if err := updateServiceDNS(app.Config); err != nil {
+		slog.Error(util.WrapErr("failed to update dns", err).Error())
+	}
+
 	server := http.NewServeMux()
 
 	// Serve the DID document for this domain.
