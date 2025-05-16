@@ -8,8 +8,8 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-const TTLSeconds = 3600  // 3 hours
-const LonelyMinutes = 15 // 15 minutes
+const TTLSeconds = 3600 + (LonelyMinutes * 60) // 1 hour + delay
+const LonelyMinutes = 15                       // 15 minutes
 
 type Valkey struct {
 	client valkey.Client
